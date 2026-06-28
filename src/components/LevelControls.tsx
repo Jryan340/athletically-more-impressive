@@ -4,6 +4,7 @@ import {
   formatTime,
   interpolateScore,
   liftRatio,
+  maskTime,
   parseCount,
   parseTime,
   rarityPercentile,
@@ -123,14 +124,16 @@ function TimeInput({
         placeholder={placeholder}
         value={text}
         onChange={(e) => {
-          const t = e.target.value;
-          setText(t);
-          if (t.trim() === '') {
+          // Auto-insert the colon as digits are typed, so the phone number pad
+          // (which has no ":" key) can still produce 16:13 from "1613".
+          const masked = maskTime(e.target.value, format);
+          setText(masked);
+          if (masked === '') {
             setBad(false);
             onValue(null);
             return;
           }
-          const parsed = parseTime(t, format);
+          const parsed = parseTime(masked, format);
           if (parsed == null) {
             setBad(true);
           } else {

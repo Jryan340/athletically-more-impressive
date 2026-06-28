@@ -55,28 +55,52 @@ export function defaultValue(feat: Feat): number | null {
 // Parsing / formatting exact input
 // ---------------------------------------------------------------------------
 
-/** Parse "mm:ss", "h:mm:ss", or a plain seconds/minutes number into seconds. */
+/** Parse "mm:ss", "h:mm:ss", or a plain digit string into seconds. */
 export function parseTime(input: string, format: 'mmss' | 'hmmss'): number | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
+
+  // No colon typed (e.g. iOS number pad has no ":" key) — interpret the digits
+  // right-aligned: last two are seconds, then minutes, then hours.
+  if (!trimmed.includes(':')) {
+    const digits = trimmed.replace(/\D/g, '');
+    if (!digits) return null;
+    if (digits.length <= 2) return Number(digits) * 60; // bare 1–2 digits = minutes
+    const ss = Number(digits.slice(-2));
+    if (format === 'hmmss' && digits.length > 4) {
+      const mm = Number(digits.slice(-4, -2));
+      const hh = Number(digits.slice(0, -4));
+      return hh * 3600 + mm * 60 + ss;
+    }
+    return Number(digits.slice(0, -2)) * 60 + ss;
+  }
+
   const parts = trimmed.split(':').map((p) => p.trim());
   if (parts.some((p) => p === '' || isNaN(Number(p)))) return null;
   const nums = parts.map(Number);
   if (nums.some((n) => n < 0)) return null;
-  let seconds: number;
-  if (nums.length === 1) {
-    // a bare number — interpret as minutes for a friendlier UX
-    seconds = nums[0] * 60;
-  } else if (nums.length === 2) {
-    seconds = nums[0] * 60 + nums[1];
-  } else if (nums.length === 3) {
-    seconds = nums[0] * 3600 + nums[1] * 60 + nums[2];
-  } else {
-    return null;
+  if (nums.length === 2) return nums[0] * 60 + nums[1];
+  if (nums.length === 3) return nums[0] * 3600 + nums[1] * 60 + nums[2];
+  return null;
+}
+
+/**
+ * Live mask for time fields: turn a raw digit string into "mm:ss" / "h:mm:ss"
+ * by inserting colons from the right, so a phone number pad (no ":" key) can
+ * still produce "16:13" by typing 1613.
+ */
+export function maskTime(raw: string, format: 'mmss' | 'hmmss'): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (format === 'hmmss') {
+    const d = digits.slice(0, 6);
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return `${d.slice(0, -2)}:${d.slice(-2)}`;
+    return `${d.slice(0, -4)}:${d.slice(-4, -2)}:${d.slice(-2)}`;
   }
-  // ignore format for parsing flexibility; format only drives display
-  void format;
-  return seconds;
+  const d = digits.slice(0, 4);
+  if (d.length <= 2) return d;
+  return `${d.slice(0, -2)}:${d.slice(-2)}`;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
